@@ -1,12 +1,13 @@
 # HTTP-LB
-# forwarding-rule-1 -> proxy1 -> urlmap1 -> backend1  -> instance1-group-http -> instance1
-#                                                     -> instance2-group-http -> instance2
+# forwarding-rule-1 -> proxy1 -> urlmap1 -> backend1  -> instance-group-http -> instance1
+#                                                                            -> instance2
 #
 # TCP-LB
-# forwarding-rule-2 -> backend2  -> instance1-group-tcp -> instance1
-#                                -> instance2-group-tcp -> instance2
+# forwarding-rule-2 -> backend2  -> instance-group-tcp -> instance1
+#                                                      -> instance2
 #
-# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance 'projects/pruebas-adri-lb/zones/europe-west1-b/instances/instance2': instance may belong to at most one load-balanced instance group.
+# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance 'projects/pruebas-adri-lb/zones/europe-west1-b/instances/instance1': instance may belong to at most one load-balanced instance group.
+# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance 'projects/pruebas-adri-lb/zones/europe-west1-b/instances/instance1': instance may belong to at most one load-balanced instance group.
 
 terraform {
   backend "local" {
@@ -51,12 +52,13 @@ resource "google_compute_instance" "instance1" {
   }
 }
 
-resource "google_compute_instance_group" "instance1-group-http" {
-  name        = "instance1-group-http"
+resource "google_compute_instance_group" "instance-group-http" {
+  name        = "instance-group-http"
   zone        = local.zone
 
   instances = [
     google_compute_instance.instance1.self_link,
+    google_compute_instance.instance2.self_link,
   ]
 
   named_port {
@@ -65,12 +67,13 @@ resource "google_compute_instance_group" "instance1-group-http" {
   }
 }
 
-resource "google_compute_instance_group" "instance1-group-tcp" {
-  name        = "instance1-group-tcp"
+resource "google_compute_instance_group" "instance-group-tcp" {
+  name        = "instance-group-tcp"
   zone        = local.zone
 
   instances = [
     google_compute_instance.instance1.self_link,
+    google_compute_instance.instance2.self_link,
   ]
 
   named_port {
@@ -94,34 +97,6 @@ resource "google_compute_instance" "instance2" {
     network = "default"
     access_config {
     }
-  }
-}
-
-resource "google_compute_instance_group" "instance2-group-http" {
-  name        = "instance2-group-http"
-  zone        = local.zone
-
-  instances = [
-    google_compute_instance.instance2.self_link,
-  ]
-
-  named_port {
-    name = "http"
-    port = 80
-  }
-}
-
-resource "google_compute_instance_group" "instance2-group-tcp" {
-  name        = "instance2-group-tcp"
-  zone        = local.zone
-
-  instances = [
-    google_compute_instance.instance2.self_link,
-  ]
-
-  named_port {
-    name = "foo"
-    port = 1000
   }
 }
 
@@ -154,7 +129,6 @@ resource "google_compute_forwarding_rule" "forwarding-rule-1" {
 }
 
 resource "google_compute_region_target_http_proxy" "proxy1" {
-  depends_on  = [google_compute_subnetwork.proxy-only]
   name    = "proxy1"
   url_map = google_compute_region_url_map.urlmap1.id
 }
@@ -183,12 +157,7 @@ resource "google_compute_region_backend_service" "backend1" {
   port_name             = "http"
   load_balancing_scheme = "INTERNAL_MANAGED"
   backend {
-    group           = google_compute_instance_group.instance1-group-http.self_link
-    balancing_mode  = "UTILIZATION"
-    capacity_scaler = 1.0
-  }
-  backend {
-    group           = google_compute_instance_group.instance2-group-http.self_link
+    group           = google_compute_instance_group.instance-group-http.self_link
     balancing_mode  = "UTILIZATION"
     capacity_scaler = 1.0
   }
@@ -211,11 +180,7 @@ resource "google_compute_region_backend_service" "backend2" {
   protocol              = "TCP"
   load_balancing_scheme = "INTERNAL"
   backend {
-    group          = google_compute_instance_group.instance1-group-tcp.id
-    balancing_mode = "CONNECTION"
-  }
-  backend {
-    group          = google_compute_instance_group.instance2-group-tcp.id
+    group          = google_compute_instance_group.instance-group-tcp.id
     balancing_mode = "CONNECTION"
   }
   health_checks = [google_compute_region_health_check.tcp-1000.self_link]
