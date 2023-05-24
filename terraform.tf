@@ -1,13 +1,13 @@
 # HTTP-LB
-# forwarding-rule-1 -> proxy1 -> urlmap1 -> backend1  -> instance-group-http -> instance1
-#                                                                            -> instance2
+# forwarding-rule-1 -> proxy1 -> urlmap1 -> backend1  -> instance-group -> instance1
+#                                                                       -> instance2
 #
 # TCP-LB
-# forwarding-rule-2 -> backend2  -> instance-group-tcp -> instance1
-#                                                      -> instance2
+# forwarding-rule-2 -> backend2  -> instance-group -> instance1
+#                                                  -> instance2
 #
-# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance 'projects/pruebas-adri-lb/zones/europe-west1-b/instances/instance1': instance may belong to at most one load-balanced instance group.
-# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance 'projects/pruebas-adri-lb/zones/europe-west1-b/instances/instance1': instance may belong to at most one load-balanced instance group.
+# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance group 'projects/pruebas-adri-lb/zones/europe-west1-b/instanceGroups/instance-group-http': backend services 'projects/pruebas-adri-lb/regions/europe-west1/backendServices/backend1' and 'projects/pruebas-adri-lb/regions/europe-west1/backendServices/backend2' point to the same instance group but the backends have incompatible balancing_mode. Values should be the same.
+# Error: Error waiting to create RegionBackendService: Error waiting for Creating RegionBackendService: Validation failed for instance group 'projects/pruebas-adri-lb/zones/europe-west1-b/instanceGroups/instance-group-http': backend services 'projects/pruebas-adri-lb/regions/europe-west1/backendServices/backend1' and 'projects/pruebas-adri-lb/regions/europe-west1/backendServices/backend2' point to the same instance group but the backends have incompatible balancing_mode. Values should be the same.
 
 terraform {
   backend "local" {
@@ -52,7 +52,7 @@ resource "google_compute_instance" "instance1" {
   }
 }
 
-resource "google_compute_instance_group" "instance-group-http" {
+resource "google_compute_instance_group" "instance-group" {
   name        = "instance-group-http"
   zone        = local.zone
 
@@ -64,21 +64,6 @@ resource "google_compute_instance_group" "instance-group-http" {
   named_port {
     name = "http"
     port = 80
-  }
-}
-
-resource "google_compute_instance_group" "instance-group-tcp" {
-  name        = "instance-group-tcp"
-  zone        = local.zone
-
-  instances = [
-    google_compute_instance.instance1.self_link,
-    google_compute_instance.instance2.self_link,
-  ]
-
-  named_port {
-    name = "foo"
-    port = 1000
   }
 }
 
@@ -157,7 +142,7 @@ resource "google_compute_region_backend_service" "backend1" {
   port_name             = "http"
   load_balancing_scheme = "INTERNAL_MANAGED"
   backend {
-    group           = google_compute_instance_group.instance-group-http.self_link
+    group           = google_compute_instance_group.instance-group.self_link
     balancing_mode  = "UTILIZATION"
     capacity_scaler = 1.0
   }
@@ -180,7 +165,7 @@ resource "google_compute_region_backend_service" "backend2" {
   protocol              = "TCP"
   load_balancing_scheme = "INTERNAL"
   backend {
-    group          = google_compute_instance_group.instance-group-tcp.id
+    group          = google_compute_instance_group.instance-group.id
     balancing_mode = "CONNECTION"
   }
   health_checks = [google_compute_region_health_check.tcp-1000.self_link]
